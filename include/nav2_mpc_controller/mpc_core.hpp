@@ -1,6 +1,6 @@
 /*
-# Copyright 2018 HyphaROS Workshop.
-# Developer: HaoChih, LIN (hypha.ros@gmail.com)
+# Copyright 2021 Harderthan
+# Original Code is from https://github.com/Geonhee-LEE/mpc_ros
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
