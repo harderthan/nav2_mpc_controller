@@ -1,6 +1,6 @@
 <class_libraries>
     <library path="nav2_mpc_controller">
-        <class type="nav2_mpc_controller::ModelPredictiveControlController" base_class_type="nav2_core::Controller">
+        <class type="nav2_mpc_controller::MPCController" base_class_type="nav2_core::Controller">
             <description>
                 nav2_mpc_controller
             </description>
