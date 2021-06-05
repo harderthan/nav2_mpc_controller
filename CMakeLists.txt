@@ -33,7 +33,7 @@ set(dependencies
 set(library_name nav2_mpc_controller)
 
 add_library(${library_name} SHARED
-        src/mpc_controller.cpp)
+        src/mpc_controller.cpp src/mpc_core.cpp)
 
 # prevent pluginlib from using boost
 target_compile_definitions(${library_name} PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
