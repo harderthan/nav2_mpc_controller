@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(nav2_mpc_controller)
 
+# Nav2_Mpc_Controller
 find_package(ament_cmake REQUIRED)
 find_package(nav2_common REQUIRED)
 find_package(nav2_core REQUIRED)
@@ -11,6 +12,9 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(tf2 REQUIRED)
+
+# MPC_CORE
+find_package(Eigen3 REQUIRED)
 
 nav2_package()
 set(CMAKE_CXX_STANDARD 17)
@@ -28,12 +32,20 @@ set(dependencies
   nav2_util
   nav2_core
   tf2
+  Eigen3
 )
 
-set(library_name nav2_mpc_controller)
+# MPC_CORE
+add_library(mpc_core src/mpc_core.cpp)
+target_link_libraries(mpc_core ipopt)
+include_directories(${Eigen3_INCLUDE_DIRS})
 
+# Nav2_Mpc_controller
+set(library_name nav2_mpc_controller)
 add_library(${library_name} SHARED
-        src/mpc_controller.cpp src/mpc_core.cpp)
+        src/mpc_controller.cpp)
+        # src/mpc_controller.cpp src/mpc_core.cpp)
+target_link_libraries(${library_name} mpc_core)        
 
 # prevent pluginlib from using boost
 target_compile_definitions(${library_name} PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
