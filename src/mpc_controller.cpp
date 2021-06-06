@@ -21,11 +21,16 @@
 #include "nav2_util/node_utils.hpp"
 #include "nav2_util/geometry_utils.hpp"
 
+#include <geometry_msgs/msg/quaternion.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2/utils.h>
+
 // using std::hypot;
 // using std::min;
 // using std::max;
 // using std::abs;
-// using nav2_util::declare_parameter_if_not_declared;
+using nav2_util::declare_parameter_if_not_declared;
 // using nav2_util::geometry_utils::euclidean_distance;
 // using namespace nav2_costmap_2d;  // NOLINT
 
@@ -41,6 +46,49 @@ namespace nav2_mpc_controller
     tf_ = tf;
     plugin_name_ = name;
     logger_ = node->get_logger();
+
+    throttle_ = 0.0; 
+    w_ = 0.0;
+    speed_ = 0.0;
+
+    declare_parameter_if_not_declared(
+        node, plugin_name_ + ".thread_numbers", rclcpp::ParameterValue(2));
+    declare_parameter_if_not_declared(
+        node, plugin_name_ + ".max_speed", rclcpp::ParameterValue(0.5));
+    declare_parameter_if_not_declared(
+        node, plugin_name_ + ".waypoints_dist", rclcpp::ParameterValue(-1.0));
+    declare_parameter_if_not_declared(
+        node, plugin_name_ + ".pathLength", rclcpp::ParameterValue(8.0)); // unit: m
+    declare_parameter_if_not_declared(
+        node, plugin_name_ + ".goal_radius", rclcpp::ParameterValue(0.5)); // unit: m
+    declare_parameter_if_not_declared(
+        node, plugin_name_ + ".controller_freq", rclcpp::ParameterValue(10)); 
+    // declare_parameter_if_not_declared(
+    //     node, plugin_name_ + ".vehicle_Lf", rclcpp::ParameterValue(0.290)); 
+
+    node->get_parameter(plugin_name_ + ".thread_numbers", thread_numbers_);
+    node->get_parameter(plugin_name_ + ".max_speed", max_speed_);
+    node->get_parameter(plugin_name_ + ".waypoints_dist", waypointsDist_);
+    node->get_parameter(plugin_name_ + ".pathLength", pathLength_);
+    node->get_parameter(plugin_name_ + ".goal_radius", goalRadius_);
+    node->get_parameter(plugin_name_ + ".controller_freq", controller_freq_);
+    // node->get_parameter(plugin_name_ + ".vehicle_Lf", Lf_);
+
+    dt_ = double(1.0/controller_freq_); // time step duration dt in s
+    mpc_steps_ = 20.0;
+    ref_cte_ = 0.0;
+    ref_vel_ = 1.0;
+    ref_etheta_ = 0.0;
+    w_cte_ = 5000.0;
+    w_etheta_ = 5000.0;
+    w_vel_ = 1.0;
+    w_angvel_ = 100.0;
+    w_angvel_d_ = 10.0;
+    w_accel_ = 50.0;
+    w_accel_d_ = 10.0;
+    max_angvel_ = 3.0; // Maximal angvel radian (~30 deg)
+    max_throttle_ = 1.0;
+    bound_value_ = 1.0e3;
 
     double transform_tolerance = 0.1;
     double control_frequency = 20.0;
@@ -100,6 +148,22 @@ namespace nav2_mpc_controller
       const geometry_msgs::msg::PoseStamped &pose,
       const geometry_msgs::msg::Twist &speed)
   {
+    // Update system states: X=[x, y, theta, v]
+    const double px = pose.pose.position.x;
+    const double py = pose.pose.position.y;
+
+    tf2::Quaternion q;
+    tf2::fromMsg(pose.pose.orientation, q);
+    const double theta = tf2::getYaw(q);
+    const double v = speed.linear.x;
+    // Update system inputs: U=[w, throttle]
+    RCLCPP_INFO(logger_, "computeVelocityCommand theta: %f, linear_v: %f", theta, v);
+
+    // const double w = _w; // steering -> w
+    // //const double steering = _steering;  // radian
+    // const double throttle = _throttle; // accel: >0; brake: <0
+    // const double dt = _dt;
+    // //const double Lf = _Lf;
 
     double linear_vel = 0.5;
     double angular_vel = 0.5;

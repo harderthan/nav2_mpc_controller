@@ -27,6 +27,8 @@
 #include "nav2_util/odometry_utils.hpp"
 #include "geometry_msgs/msg/pose2_d.hpp"
 
+#include "mpc_core.hpp"
+
 namespace nav2_mpc_controller
 {
 
@@ -96,7 +98,7 @@ namespace nav2_mpc_controller
    */
     void setPlan(const nav_msgs::msg::Path &path) override;
 
-    // protected:
+    protected:
     //   /**
     //    * @brief Transforms global plan into same frame as pose, clips far away poses and possibly prunes passed poses
     //    * @param pose pose to transform
@@ -213,31 +215,22 @@ namespace nav2_mpc_controller
     nav2_costmap_2d::Costmap2D *costmap_;
     rclcpp::Logger logger_{rclcpp::get_logger("MPCController")};
 
-    //   double desired_linear_vel_;
-    //   double lookahead_dist_;
-    //   double rotate_to_heading_angular_vel_;
-    //   double max_lookahead_dist_;
-    //   double min_lookahead_dist_;
-    //   double lookahead_time_;
-    //   double max_linear_accel_;
-    //   double max_linear_decel_;
-    //   bool use_velocity_scaled_lookahead_dist_;
+    MPCCore _mpc;
+    map<string, double> _mpc_params;
+    double mpc_steps_, ref_cte_, ref_etheta_, ref_vel_, w_cte_, w_etheta_, w_vel_,
+        w_angvel_, w_accel_, w_angvel_d_, w_accel_d_, max_angvel_, max_throttle_, bound_value_;
+
+    //double _Lf;
+    double dt_, w_, throttle_, speed_, max_speed_;
+    double pathLength_, goalRadius_, waypointsDist_;
+    int controller_freq_, downSampling_, thread_numbers_;
+    bool goal_received_, goal_reached_, path_computed_, pub_twist_flag_, debug_info_, delay_mode_;
+
+    // TODO
     tf2::Duration transform_tolerance_;
-    //   bool use_approach_vel_scaling_;
-    //   double min_approach_linear_velocity_;
     double control_duration_;
-    //   double max_allowed_time_to_collision_;
-    //   bool use_regulated_linear_velocity_scaling_;
     bool use_cost_regulated_linear_velocity_scaling_;
-    //   double cost_scaling_dist_;
-    //   double cost_scaling_gain_;
     double inflation_cost_scaling_factor_;
-    //   double regulated_linear_scaling_min_radius_;
-    //   double regulated_linear_scaling_min_speed_;
-    //   bool use_rotate_to_heading_;
-    //   double max_angular_accel_;
-    //   double rotate_to_heading_min_angle_;
-    //   double goal_dist_tol_;
 
     nav_msgs::msg::Path global_plan_;
     std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>> global_path_pub_;
