@@ -47,10 +47,8 @@ namespace nav2_mpc_controller
     plugin_name_ = name;
     logger_ = node->get_logger();
 
-    throttle_ = 0.0; 
-    w_ = 0.0;
-    speed_ = 0.0;
-
+    declare_parameter_if_not_declared(
+        node, plugin_name_ + ".delay_mode", rclcpp::ParameterValue(true));
     declare_parameter_if_not_declared(
         node, plugin_name_ + ".thread_numbers", rclcpp::ParameterValue(2));
     declare_parameter_if_not_declared(
@@ -62,10 +60,11 @@ namespace nav2_mpc_controller
     declare_parameter_if_not_declared(
         node, plugin_name_ + ".goal_radius", rclcpp::ParameterValue(0.5)); // unit: m
     declare_parameter_if_not_declared(
-        node, plugin_name_ + ".controller_freq", rclcpp::ParameterValue(10)); 
+        node, plugin_name_ + ".controller_freq", rclcpp::ParameterValue(10));
     // declare_parameter_if_not_declared(
-    //     node, plugin_name_ + ".vehicle_Lf", rclcpp::ParameterValue(0.290)); 
+    //     node, plugin_name_ + ".vehicle_Lf", rclcpp::ParameterValue(0.290));
 
+    node->get_parameter(plugin_name_ + ".delay_mode", delay_mode_);
     node->get_parameter(plugin_name_ + ".thread_numbers", thread_numbers_);
     node->get_parameter(plugin_name_ + ".max_speed", max_speed_);
     node->get_parameter(plugin_name_ + ".waypoints_dist", waypointsDist_);
@@ -74,7 +73,11 @@ namespace nav2_mpc_controller
     node->get_parameter(plugin_name_ + ".controller_freq", controller_freq_);
     // node->get_parameter(plugin_name_ + ".vehicle_Lf", Lf_);
 
-    dt_ = double(1.0/controller_freq_); // time step duration dt in s
+    throttle_ = 0.0;
+    w_ = 0.0;
+    speed_ = 0.0;
+
+    dt_ = double(1.0 / controller_freq_); // time step duration dt in s
     mpc_steps_ = 20.0;
     ref_cte_ = 0.0;
     ref_vel_ = 1.0;
@@ -89,6 +92,25 @@ namespace nav2_mpc_controller
     max_angvel_ = 3.0; // Maximal angvel radian (~30 deg)
     max_throttle_ = 1.0;
     bound_value_ = 1.0e3;
+
+    //Init parameters for MPC object
+    _mpc_params["DT"] = dt_;
+    //_mpc_params["LF"] = _Lf;
+    _mpc_params["STEPS"] = mpc_steps_;
+    _mpc_params["REF_CTE"] = ref_cte_;
+    _mpc_params["REF_ETHETA"] = ref_etheta_;
+    _mpc_params["REF_V"] = ref_vel_;
+    _mpc_params["W_CTE"] = w_cte_;
+    _mpc_params["W_EPSI"] = w_etheta_;
+    _mpc_params["W_V"] = w_vel_;
+    _mpc_params["W_ANGVEL"] = w_angvel_;
+    _mpc_params["W_A"] = w_accel_;
+    _mpc_params["W_DANGVEL"] = w_angvel_d_;
+    _mpc_params["W_DA"] = w_accel_d_;
+    _mpc_params["ANGVEL"] = max_angvel_;
+    _mpc_params["MAXTHR"] = max_throttle_;
+    _mpc_params["BOUND"] = bound_value_;
+    _mpc.LoadParams(_mpc_params);
 
     double transform_tolerance = 0.1;
     double control_frequency = 20.0;
@@ -155,25 +177,161 @@ namespace nav2_mpc_controller
     tf2::Quaternion q;
     tf2::fromMsg(pose.pose.orientation, q);
     const double theta = tf2::getYaw(q);
+    const double costheta = cos(theta);
+    const double sintheta = sin(theta);
     const double v = speed.linear.x;
-    // Update system inputs: U=[w, throttle]
-    RCLCPP_INFO(logger_, "computeVelocityCommand theta: %f, linear_v: %f", theta, v);
+    const double w = w_;               // steering -> w
+    const double throttle = throttle_; // accel: >0; brake: <0
+    const double dt = dt_;
 
-    // const double w = _w; // steering -> w
-    // //const double steering = _steering;  // radian
-    // const double throttle = _throttle; // accel: >0; brake: <0
-    // const double dt = _dt;
-    // //const double Lf = _Lf;
+    // Waypoints related parameters
+    const int N = global_plan_.poses.size();
 
-    double linear_vel = 0.5;
-    double angular_vel = 0.5;
+    // Convert to the vehicle coordinate system
+    Eigen::VectorXd x_veh(N);
+    Eigen::VectorXd y_veh(N);
+    for (int i = 0; i < N; i++)
+    {
+      const double dx = global_plan_.poses[i].pose.position.x - px;
+      const double dy = global_plan_.poses[i].pose.position.y - py;
+      x_veh[i] = dx * costheta + dy * sintheta;
+      y_veh[i] = dy * costheta - dx * sintheta;
+    }
+
+    // Fit waypoints
+    auto coeffs = polyfit(x_veh, y_veh, 3);
+    const double cte = polyeval(coeffs, 0.0);
+    cout << "coeffs : " << coeffs[0] << endl;
+    cout << "pow : " << pow(0.0, 0) << endl;
+    cout << "cte : " << cte << endl;
+    double etheta = atan(coeffs[1]);
+
+    // Global coordinate system about theta
+    double gx = 0;
+    double gy = 0;
+    int N_sample = N * 0.3;
+    for (int i = 1; i < N_sample; i++)
+    {
+      gx += global_plan_.poses[i].pose.position.x - global_plan_.poses[i - 1].pose.position.x;
+      gy += global_plan_.poses[i].pose.position.y - global_plan_.poses[i - 1].pose.position.y;
+    }
+
+    double temp_theta = theta;
+    double traj_deg = atan2(gy, gx);
+    double PI = 3.141592;
+
+    // Degree conversion -pi~pi -> 0~2pi(ccw) since need a continuity
+    if (temp_theta <= -PI + traj_deg)
+      temp_theta = temp_theta + 2 * PI;
+
+    // Implementation about theta error more precisly
+    if (gx && gy && temp_theta - traj_deg < 1.8 * PI)
+      etheta = temp_theta - traj_deg;
+    else
+      etheta = 0;
+
+    cout << "etheta: " << etheta << ", atan2(gy,gx): " << atan2(gy, gx) << ", temp_theta:" << traj_deg << endl;
+
+    // Difference bewteen current position and goal position
+    // const double x_err = goal_pos.x - odom.pose.pose.position.x;
+    // const double y_err = goal_pos.y - odom.pose.pose.position.y;
+    // const double goal_err = sqrt(x_err * x_err + y_err * y_err);
+
+    // cout << "x_err:" << x_err << ", y_err:" << y_err << endl;
+
+    Eigen::VectorXd state(6);
+    if (delay_mode_)
+    {
+      // Kinematic model is used to predict vehicle state at the actual moment of control (current time + delay dt)
+      const double px_act = v * dt;
+      const double py_act = 0;
+      const double theta_act = w * dt;        //(steering) theta_act = v * steering * dt / Lf;
+      const double v_act = v + throttle * dt; //v = v + a * dt
+
+      const double cte_act = cte + v * sin(etheta) * dt;
+      const double etheta_act = etheta - theta_act;
+
+      state << px_act, py_act, theta_act, v_act, cte_act, etheta_act;
+    }
+    else
+    {
+      state << 0, 0, 0, v, cte, etheta;
+    }
+
+    // Solve MPC Problem
+    rclcpp::Time begin = rclcpp::Clock().now();
+    vector<double> mpc_results = _mpc.Solve(state, coeffs);
+    rclcpp::Time end = rclcpp::Clock().now();
+    cout << "Duration: " << end.seconds() << "." << end.nanoseconds() << endl
+         << begin.seconds() << "." << begin.nanoseconds() << endl;
+
+    // MPC result (all described in car frame), output = (acceleration, w)
+    w_ = mpc_results[0];        // radian/sec, angular velocity
+    throttle_ = mpc_results[1]; // acceleration
+
+    speed_ = v + throttle_ * dt_; // speed
+    if (speed_ >= max_speed_)
+      speed_ = max_speed_;
+    if (speed_ <= 0.0)
+      speed_ = 0.0;
+
+    if (debug_info_)
+    {
+      cout << "\n\nDEBUG" << endl;
+      cout << "theta: " << theta << endl;
+      cout << "V: " << v << endl;
+      //cout << "odom_path: \n" << odom_path << endl;
+      //cout << "x_points: \n" << x_veh << endl;
+      //cout << "y_points: \n" << y_veh << endl;
+      cout << "coeffs: \n"
+           << coeffs << endl;
+      cout << "w_: \n"
+           << w_ << endl;
+      cout << "throttle_: \n"
+           << throttle_ << endl;
+      cout << "speed_: \n"
+           << speed_ << endl;
+    }
 
     // populate and return message
     geometry_msgs::msg::TwistStamped cmd_vel;
     cmd_vel.header = pose.header;
-    cmd_vel.twist.linear.x = linear_vel;
-    cmd_vel.twist.angular.z = angular_vel;
+    cmd_vel.twist.linear.x = speed_;
+    cmd_vel.twist.angular.z = w_;
     return cmd_vel;
+  }
+
+  // Evaluate a polynomial.
+  double MPCController::polyeval(Eigen::VectorXd coeffs, double x)
+  {
+    double result = 0.0;
+    for (int i = 0; i < coeffs.size(); i++)
+    {
+      result += coeffs[i] * pow(x, i);
+    }
+    return result;
+  }
+
+  // Fit a polynomial.
+  // Adapted from
+  // https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
+  Eigen::VectorXd MPCController::polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals, int order)
+  {
+    assert(xvals.size() == yvals.size());
+    assert(order >= 1 && order <= xvals.size() - 1);
+    Eigen::MatrixXd A(xvals.size(), order + 1);
+
+    for (int i = 0; i < xvals.size(); i++)
+      A(i, 0) = 1.0;
+
+    for (int j = 0; j < xvals.size(); j++)
+    {
+      for (int i = 0; i < order; i++)
+        A(j, i + 1) = A(j, i) * xvals(j);
+    }
+    auto Q = A.householderQr();
+    auto result = Q.solve(yvals);
+    return result;
   }
 
   void MPCController::setPlan(const nav_msgs::msg::Path &path)

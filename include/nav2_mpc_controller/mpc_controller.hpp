@@ -28,10 +28,11 @@
 #include "geometry_msgs/msg/pose2_d.hpp"
 
 #include "mpc_core.hpp"
+#include <Eigen/Core>
+#include <Eigen/QR>
 
 namespace nav2_mpc_controller
 {
-
   /**
  * @class nav2_mpc_controller::MPCController
  * @brief Regulated pure pursuit controller plugin
@@ -98,7 +99,10 @@ namespace nav2_mpc_controller
    */
     void setPlan(const nav_msgs::msg::Path &path) override;
 
-    protected:
+  protected:
+    double polyeval(Eigen::VectorXd coeffs, double x);
+    Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals, int order);
+
     //   /**
     //    * @brief Transforms global plan into same frame as pose, clips far away poses and possibly prunes passed poses
     //    * @param pose pose to transform
