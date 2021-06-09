@@ -26,13 +26,7 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2/utils.h>
 
-// using std::hypot;
-// using std::min;
-// using std::max;
-// using std::abs;
 using nav2_util::declare_parameter_if_not_declared;
-// using nav2_util::geometry_utils::euclidean_distance;
-// using namespace nav2_costmap_2d;  // NOLINT
 
 namespace nav2_mpc_controller
 {
@@ -48,7 +42,7 @@ namespace nav2_mpc_controller
     logger_ = node->get_logger();
 
     declare_parameter_if_not_declared(
-        node, plugin_name_ + ".delay_mode", rclcpp::ParameterValue(true));
+        node, plugin_name_ + ".delay_mode", rclcpp::ParameterValue(false));
     declare_parameter_if_not_declared(
         node, plugin_name_ + ".thread_numbers", rclcpp::ParameterValue(2));
     declare_parameter_if_not_declared(
@@ -61,8 +55,6 @@ namespace nav2_mpc_controller
         node, plugin_name_ + ".goal_radius", rclcpp::ParameterValue(0.5)); // unit: m
     declare_parameter_if_not_declared(
         node, plugin_name_ + ".controller_freq", rclcpp::ParameterValue(10));
-    // declare_parameter_if_not_declared(
-    //     node, plugin_name_ + ".vehicle_Lf", rclcpp::ParameterValue(0.290));
 
     node->get_parameter(plugin_name_ + ".delay_mode", delay_mode_);
     node->get_parameter(plugin_name_ + ".thread_numbers", thread_numbers_);
@@ -71,7 +63,6 @@ namespace nav2_mpc_controller
     node->get_parameter(plugin_name_ + ".pathLength", pathLength_);
     node->get_parameter(plugin_name_ + ".goal_radius", goalRadius_);
     node->get_parameter(plugin_name_ + ".controller_freq", controller_freq_);
-    // node->get_parameter(plugin_name_ + ".vehicle_Lf", Lf_);
 
     throttle_ = 0.0;
     w_ = 0.0;
@@ -95,7 +86,6 @@ namespace nav2_mpc_controller
 
     //Init parameters for MPC object
     _mpc_params["DT"] = dt_;
-    //_mpc_params["LF"] = _Lf;
     _mpc_params["STEPS"] = mpc_steps_;
     _mpc_params["REF_CTE"] = ref_cte_;
     _mpc_params["REF_ETHETA"] = ref_etheta_;
@@ -118,16 +108,7 @@ namespace nav2_mpc_controller
     transform_tolerance_ = tf2::durationFromSec(transform_tolerance);
     control_duration_ = 1.0 / control_frequency;
 
-    // if (inflation_cost_scaling_factor_ <= 0.0)
-    // {
-    //   RCLCPP_WARN(logger_, "The value inflation_cost_scaling_factor is incorrectly set, "
-    //                        "it should be >0. Disabling cost regulated linear velocity scaling.");
-    //   use_cost_regulated_linear_velocity_scaling_ = false;
-    // }
-
     global_path_pub_ = node->create_publisher<nav_msgs::msg::Path>("received_global_plan", 1);
-    // carrot_pub_ = node->create_publisher<geometry_msgs::msg::PointStamped>("lookahead_point", 1);
-    // carrot_arc_pub_ = node->create_publisher<nav_msgs::msg::Path>("lookahead_collision_arc", 1);
   }
 
   void MPCController::cleanup()
@@ -138,8 +119,6 @@ namespace nav2_mpc_controller
         " nav2_mpc_controller::MPCController",
         plugin_name_.c_str());
     global_path_pub_.reset();
-    // carrot_pub_.reset();
-    // carrot_arc_pub_.reset();
   }
 
   void MPCController::activate()
@@ -150,8 +129,6 @@ namespace nav2_mpc_controller
         " nav2_mpc_controller::MPCController",
         plugin_name_.c_str());
     global_path_pub_->on_activate();
-    // carrot_pub_->on_activate();
-    // carrot_arc_pub_->on_activate();
   }
 
   void MPCController::deactivate()
@@ -162,8 +139,6 @@ namespace nav2_mpc_controller
         " nav2_mpc_controller::MPCController",
         plugin_name_.c_str());
     global_path_pub_->on_deactivate();
-    // carrot_pub_->on_deactivate();
-    // carrot_arc_pub_->on_deactivate();
   }
 
   geometry_msgs::msg::TwistStamped MPCController::computeVelocityCommands(
@@ -229,15 +204,7 @@ namespace nav2_mpc_controller
       etheta = temp_theta - traj_deg;
     else
       etheta = 0;
-
     cout << "etheta: " << etheta << ", atan2(gy,gx): " << atan2(gy, gx) << ", temp_theta:" << traj_deg << endl;
-
-    // Difference bewteen current position and goal position
-    // const double x_err = goal_pos.x - odom.pose.pose.position.x;
-    // const double y_err = goal_pos.y - odom.pose.pose.position.y;
-    // const double goal_err = sqrt(x_err * x_err + y_err * y_err);
-
-    // cout << "x_err:" << x_err << ", y_err:" << y_err << endl;
 
     Eigen::VectorXd state(6);
     if (delay_mode_)
@@ -280,9 +247,6 @@ namespace nav2_mpc_controller
       cout << "\n\nDEBUG" << endl;
       cout << "theta: " << theta << endl;
       cout << "V: " << v << endl;
-      //cout << "odom_path: \n" << odom_path << endl;
-      //cout << "x_points: \n" << x_veh << endl;
-      //cout << "y_points: \n" << y_veh << endl;
       cout << "coeffs: \n"
            << coeffs << endl;
       cout << "w_: \n"
