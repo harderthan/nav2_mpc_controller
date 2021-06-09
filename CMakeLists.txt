@@ -44,7 +44,6 @@ include_directories(${Eigen3_INCLUDE_DIRS})
 set(library_name nav2_mpc_controller)
 add_library(${library_name} SHARED
         src/mpc_controller.cpp)
-        # src/mpc_controller.cpp src/mpc_core.cpp)
 target_link_libraries(${library_name} mpc_core)        
 
 # prevent pluginlib from using boost

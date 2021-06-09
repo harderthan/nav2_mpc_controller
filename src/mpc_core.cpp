@@ -16,7 +16,6 @@
 */
 
 #include "nav2_mpc_controller/mpc_core.hpp"
-//#include <cppad/cppad.hpp>
 #include <cppad/ipopt/solve.hpp>
 #include <Eigen/Core>
 
@@ -265,7 +264,6 @@ void MPCCore::LoadParams(const std::map<string, double> &params)
 vector<double> MPCCore::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) 
 {
     bool ok = true;
-    size_t i;
     typedef CPPAD_TESTVECTOR(double) Dvector;
     const double x = state[0];
     const double y = state[1];
@@ -286,7 +284,7 @@ vector<double> MPCCore::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs)
     // Initial value of the independent variables.
     // SHOULD BE 0 besides initial state.
     Dvector vars(n_vars);
-    for (int i = 0; i < n_vars; i++) 
+    for (size_t i = 0; i < n_vars; i++) 
     {
         vars[i] = 0;
     }
@@ -305,20 +303,20 @@ vector<double> MPCCore::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs)
     
     // Set all non-actuators upper and lowerlimits
     // to the max negative and positive values.
-    for (int i = 0; i < _angvel_start; i++) 
+    for (size_t i = 0; i < (size_t)_angvel_start; i++) 
     {
         vars_lowerbound[i] = -_bound_value;
         vars_upperbound[i] = _bound_value;
     }
     // The upper and lower limits of angvel are set to -25 and 25
     // degrees (values in radians).
-    for (int i = _angvel_start; i < _a_start; i++) 
+    for (size_t i = _angvel_start; i < (size_t)_a_start; i++) 
     {
         vars_lowerbound[i] = -_max_angvel;
         vars_upperbound[i] = _max_angvel;
     }
     // Acceleration/decceleration upper and lower limits
-    for (int i = _a_start; i < n_vars; i++)  
+    for (size_t i = _a_start; i < n_vars; i++)  
     {
         vars_lowerbound[i] = -_max_throttle;
         vars_upperbound[i] = _max_throttle;
@@ -329,7 +327,7 @@ vector<double> MPCCore::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs)
     // Should be 0 besides initial state.
     Dvector constraints_lowerbound(n_constraints);
     Dvector constraints_upperbound(n_constraints);
-    for (int i = 0; i < n_constraints; i++)
+    for (size_t i = 0; i < n_constraints; i++)
     {
         constraints_lowerbound[i] = 0;
         constraints_upperbound[i] = 0;
