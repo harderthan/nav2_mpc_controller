@@ -16,6 +16,7 @@
 */
 
 #include "nav2_mpc_controller/mpc_core.hpp"
+
 #include <cppad/ipopt/solve.hpp>
 #include <Eigen/Core>
 

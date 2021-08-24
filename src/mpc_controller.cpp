@@ -179,32 +179,8 @@ namespace nav2_mpc_controller
     cout << "coeffs : " << coeffs[0] << endl;
     cout << "pow : " << pow(0.0, 0) << endl;
     cout << "cte : " << cte << endl;
-    double etheta = atan(coeffs[1]);
-
-    // Global coordinate system about theta
-    double gx = 0;
-    double gy = 0;
-    int N_sample = N * 0.3;
-    for (int i = 1; i < N_sample; i++)
-    {
-      gx += global_plan_.poses[i].pose.position.x - global_plan_.poses[i - 1].pose.position.x;
-      gy += global_plan_.poses[i].pose.position.y - global_plan_.poses[i - 1].pose.position.y;
-    }
-
-    double temp_theta = theta;
-    double traj_deg = atan2(gy, gx);
-    double PI = 3.141592;
-
-    // Degree conversion -pi~pi -> 0~2pi(ccw) since need a continuity
-    if (temp_theta <= -PI + traj_deg)
-      temp_theta = temp_theta + 2 * PI;
-
-    // Implementation about theta error more precisly
-    if (gx && gy && temp_theta - traj_deg < 1.8 * PI)
-      etheta = temp_theta - traj_deg;
-    else
-      etheta = 0;
-    cout << "etheta: " << etheta << ", atan2(gy,gx): " << atan2(gy, gx) << ", temp_theta:" << traj_deg << endl;
+    
+    double etheta = impThetaError(theta, coeffs, N, 0.3);
 
     Eigen::VectorXd state(6);
     if (delay_mode_)
@@ -301,6 +277,39 @@ namespace nav2_mpc_controller
   void MPCController::setPlan(const nav_msgs::msg::Path &path)
   {
     global_plan_ = path;
+  }
+
+  /*
+  * Global coordinate system about theta
+  */
+  double MPCController::impThetaError(double theta, const Eigen::VectorXd coeffs, int sample_size, int sample_ratio) {
+    double etheta = atan(coeffs[1]);
+    double gx = 0;
+    double gy = 0;
+    for (int i = 1; i < sample_size * sample_ratio; i++) {
+      gx += global_plan_.poses[i].pose.position.x -
+            global_plan_.poses[i - 1].pose.position.x;
+      gy += global_plan_.poses[i].pose.position.y -
+            global_plan_.poses[i - 1].pose.position.y;
+    }
+
+    double temp_theta = theta;
+    double traj_deg = atan2(gy, gx);
+    double PI = 3.141592;
+
+    // Degree conversion -pi~pi -> 0~2pi(ccw) since need a continuity
+    if (temp_theta <= -PI + traj_deg)
+      temp_theta = temp_theta + 2 * PI;
+
+    // Implementation about theta error more precisly
+    if (gx && gy && temp_theta - traj_deg < 1.8 * PI)
+      etheta = temp_theta - traj_deg;
+    else
+      etheta = 0;
+    cout << "etheta: " << etheta << ", atan2(gy,gx): " << atan2(gy, gx)
+         << ", temp_theta:" << traj_deg << endl;
+
+    return etheta;
   }
 } // namespace nav2_mpc_controller
 
