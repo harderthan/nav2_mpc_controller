@@ -100,8 +100,8 @@ public:
   void setPlan(const nav_msgs::msg::Path &path) override;
 
 protected:
-  double impThetaError(double theta, const Eigen::VectorXd coeffs, int sample_size,
-                       int sample_ratio);
+  double impThetaError(double theta, const Eigen::VectorXd coeffs,
+                       int sample_size, int sample_ratio);
 
   double polyeval(Eigen::VectorXd coeffs, double x);
   Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
