@@ -295,25 +295,30 @@ double MPCController::impThetaError(double theta, const Eigen::VectorXd& coeffs,
 }
 
 /*
- * Implimen
+ * Implimentation Coefficients
  */
-Eigen::VectorXd& impCoefficients(const geometry_msgs::msg::PoseStamped &pose, const nav_msgs::msg::Path& global_plan){
-    // Update system states: X=[x, y, theta, v]
-  const double px = pose.pose.position.x;
-  const double py = pose.pose.position.y;
-   // Waypoints related parameters
-  const int N = global_plan.poses.size();
+// Eigen::VectorXd& impCoefficients(const geometry_msgs::msg::PoseStamped &pose, const nav_msgs::msg::Path& global_plan){
+//   tf2::Quaternion q;
+//   tf2::fromMsg(pose.pose.orientation, q);
+//   const double theta = tf2::getYaw(q);
+//   const double costheta = cos(theta);
+//   const double sintheta = sin(theta);
+//   // Update system states: X=[x, y, theta, v]
+//   const double px = pose.pose.position.x;
+//   const double py = pose.pose.position.y;
+//    // Waypoints related parameters
+//   const int N = global_plan.poses.size();
 
-  // Convert to the vehicle coordinate system
-  Eigen::VectorXd x_veh(N);
-  Eigen::VectorXd y_veh(N);
-  for (int i = 0; i < N; i++) {
-    const double dx = global_plan.poses[i].pose.position.x - px;
-    const double dy = global_plan.poses[i].pose.position.y - py;
-    x_veh[i] = dx * costheta + dy * sintheta;
-    y_veh[i] = dy * costheta - dx * sintheta;
-  }
-}
+//   // Convert to the vehicle coordinate system
+//   Eigen::VectorXd x_veh(N);
+//   Eigen::VectorXd y_veh(N);
+//   for (int i = 0; i < N; i++) {
+//     const double dx = global_plan.poses[i].pose.position.x - px;
+//     const double dy = global_plan.poses[i].pose.position.y - py;
+//     x_veh[i] = dx * costheta + dy * sintheta;
+//     y_veh[i] = dy * costheta - dx * sintheta;
+//   }
+// }
 } // namespace nav2_mpc_controller
 
 // Register this controller as a nav2_core plugin

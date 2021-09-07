@@ -100,6 +100,7 @@ public:
   void setPlan(const nav_msgs::msg::Path &path) override;
 
 protected:
+  Eigen::VectorXd& impCoefficients(const geometry_msgs::msg::PoseStamped &pose, const nav_msgs::msg::Path& global_plan);
   double impThetaError(double theta, const Eigen::VectorXd& coeffs,
                        int sample_size, int sample_ratio);
   void convertCoordinateSystem(Eigen::VectorXd& x_veh, Eigen::VectorXd y_veh);
