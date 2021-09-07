@@ -165,7 +165,7 @@ geometry_msgs::msg::TwistStamped MPCController::computeVelocityCommands(
   }
 
   // Fit waypoints
-  auto coeffs = polyfit(x_veh, y_veh, 3);
+  Eigen::VectorXd coeffs = polyfit(x_veh, y_veh, 3);
   const double cte = polyeval(coeffs, 0.0);
   cout << "coeffs : " << coeffs[0] << endl;
   cout << "pow : " << pow(0.0, 0) << endl;
@@ -263,7 +263,7 @@ void MPCController::setPlan(const nav_msgs::msg::Path &path) {
 /*
  * Global coordinate system about theta
  */
-double MPCController::impThetaError(double theta, const Eigen::VectorXd coeffs,
+double MPCController::impThetaError(double theta, const Eigen::VectorXd& coeffs,
                                     int sample_size, int sample_ratio) {
   double etheta = atan(coeffs[1]);
   double gx = 0;
@@ -292,6 +292,27 @@ double MPCController::impThetaError(double theta, const Eigen::VectorXd coeffs,
        << ", temp_theta:" << traj_deg << endl;
 
   return etheta;
+}
+
+/*
+ * Implimen
+ */
+Eigen::VectorXd& impCoefficients(const geometry_msgs::msg::PoseStamped &pose, const nav_msgs::msg::Path& global_plan){
+    // Update system states: X=[x, y, theta, v]
+  const double px = pose.pose.position.x;
+  const double py = pose.pose.position.y;
+   // Waypoints related parameters
+  const int N = global_plan.poses.size();
+
+  // Convert to the vehicle coordinate system
+  Eigen::VectorXd x_veh(N);
+  Eigen::VectorXd y_veh(N);
+  for (int i = 0; i < N; i++) {
+    const double dx = global_plan.poses[i].pose.position.x - px;
+    const double dy = global_plan.poses[i].pose.position.y - py;
+    x_veh[i] = dx * costheta + dy * sintheta;
+    y_veh[i] = dy * costheta - dx * sintheta;
+  }
 }
 } // namespace nav2_mpc_controller
 
